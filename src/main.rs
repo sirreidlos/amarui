@@ -4,18 +4,15 @@
 #![test_runner(amarui::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use amarui::{
-    QemuExitCode, exit_qemu, print, println, serial_print, serial_println, vga_buffer::WRITER,
-};
+use amarui::{QemuExitCode, exit_qemu, println, serial_println};
 use core::panic::PanicInfo;
-use spin::Mutex;
 
 /// This function is called on panic.
 #[cfg(not(test))]
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
     println!("{}", info);
-    loop {}
+    amarui::hlt_loop();
 }
 
 #[cfg(test)]
@@ -34,31 +31,13 @@ const BUFFER_WIDTH: usize = 80;
 /// named `_start` by default
 #[unsafe(no_mangle)] // don't mangle the name of this function
 pub extern "C" fn _start() -> ! {
-    // panic!("Some panic message");
-    println!("Hello world{}", "!");
+    println!("Hello World{}", "!");
 
-    let s = "Some test string that fits on a single line";
-    println!("{}", s);
-
-    let mut curr_buffer: [[u8; BUFFER_WIDTH]; BUFFER_HEIGHT] = [[0; BUFFER_WIDTH]; BUFFER_HEIGHT];
-    for r in 0..BUFFER_HEIGHT {
-        for c in 0..BUFFER_WIDTH {
-            let screen_char = WRITER.lock().buffer.chars[r][c].read().ascii_character;
-            curr_buffer[r][c] = screen_char
-        }
-    }
-
-    for r in 0..BUFFER_HEIGHT {
-        for c in 0..BUFFER_WIDTH {
-            print!("{}", char::from(curr_buffer[r][c]));
-        }
-
-        println!();
-    }
-    println!("ASJDJAJKSD");
+    amarui::init(); // new
 
     #[cfg(test)]
     test_main();
 
-    loop {}
+    println!("It did not crash!");
+    amarui::hlt_loop();
 }

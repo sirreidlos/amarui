@@ -8,7 +8,6 @@ use amarui::{QemuExitCode, exit_qemu, serial_print, serial_println};
 use core::panic::PanicInfo;
 
 #[panic_handler]
-
 fn panic(_info: &PanicInfo) -> ! {
     serial_println!("[ok]");
     exit_qemu(QemuExitCode::Success);
