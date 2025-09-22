@@ -6,17 +6,21 @@
 
 extern crate alloc;
 
-use alloc::boxed::Box;
-use alloc::rc::Rc;
 use alloc::vec;
-use alloc::vec::Vec;
-use amarui::memory::{self, BootInfoFrameAllocator};
-use amarui::{QemuExitCode, allocator, exit_qemu, println, serial_println};
+use alloc::{boxed::Box, rc::Rc, vec::Vec};
+use amarui::{
+    QemuExitCode, allocator, exit_qemu,
+    memory::{self, BootInfoFrameAllocator},
+    println, serial_println,
+    task::{Task, executor::Executor, keyboard},
+};
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
-use x86_64::VirtAddr;
-use x86_64::registers::control::Cr3;
-use x86_64::structures::paging::{Page, PageTable, Translate, page};
+use x86_64::{
+    VirtAddr,
+    registers::control::Cr3,
+    structures::paging::{Page, PageTable, Translate, page},
+};
 
 /// This function is called on panic.
 #[cfg(not(test))]
@@ -39,6 +43,15 @@ const BUFFER_HEIGHT: usize = 25;
 const BUFFER_WIDTH: usize = 80;
 
 entry_point!(kernel_main);
+
+async fn async_number() -> u32 {
+    42
+}
+
+async fn example_task() {
+    let number = async_number().await;
+    println!("async number: {}", number);
+}
 
 /// this function is the entry point, since the linker looks for a function
 /// named `_start` by default
@@ -85,6 +98,11 @@ pub fn kernel_main(boot_info: &'static BootInfo) -> ! {
 
     #[cfg(test)]
     test_main();
+
+    let mut executor = Executor::new();
+    executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(keyboard::print_keypresses())); // new
+    executor.run();
 
     println!("It did not crash!");
     amarui::hlt_loop();
