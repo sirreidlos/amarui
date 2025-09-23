@@ -5,8 +5,13 @@
 #![reexport_test_harness_main = "test_main"]
 #![feature(abi_x86_interrupt)]
 
+extern crate alloc;
+
+pub mod allocator;
+pub mod context;
 pub mod gdt;
 pub mod interrupts;
+pub mod memory;
 pub mod serial;
 pub mod vga_buffer;
 
@@ -73,10 +78,16 @@ pub fn init() {
     x86_64::instructions::interrupts::enable();
 }
 
+#[cfg(test)]
+use bootloader::{BootInfo, entry_point};
+
+#[cfg(test)]
+entry_point!(test_kernel_main);
+
 /// Entry point for `cargo test`
 #[cfg(test)]
 #[unsafe(no_mangle)]
-pub extern "C" fn _start() -> ! {
+pub fn test_kernel_main(boot_info: &'static BootInfo) -> ! {
     init();
     test_main();
     hlt_loop();
