@@ -1,11 +1,11 @@
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
-#![test_runner(amarui::test_runner)]
+#![test_runner(kernel::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use amarui::{QemuExitCode, exit_qemu, serial_print, serial_println};
 use core::panic::PanicInfo;
+use kernel::{QemuExitCode, exit_qemu, serial_print, serial_println};
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {

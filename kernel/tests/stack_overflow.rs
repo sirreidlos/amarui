@@ -2,8 +2,8 @@
 #![no_main]
 #![feature(abi_x86_interrupt)]
 
-use amarui::{QemuExitCode, exit_qemu, serial_print, serial_println};
 use core::panic::PanicInfo;
+use kernel::{QemuExitCode, exit_qemu, serial_print, serial_println};
 use lazy_static::lazy_static;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
@@ -13,7 +13,7 @@ lazy_static! {
         unsafe {
             idt.double_fault
                 .set_handler_fn(test_double_fault_handler)
-                .set_stack_index(amarui::gdt::DOUBLE_FAULT_IST_INDEX);
+                .set_stack_index(kernel::gdt::DOUBLE_FAULT_IST_INDEX);
         }
 
         idt
@@ -37,7 +37,7 @@ pub fn init_test_idt() {
 pub extern "C" fn _start() -> ! {
     serial_print!("stack_overflow::stack_overflow...\t");
 
-    amarui::gdt::init();
+    kernel::gdt::init();
     init_test_idt();
 
     // trigger a stack overflow
@@ -48,7 +48,7 @@ pub extern "C" fn _start() -> ! {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    amarui::test_panic_handler(info)
+    kernel::test_panic_handler(info)
 }
 
 #[allow(unconditional_recursion)]

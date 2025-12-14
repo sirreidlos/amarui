@@ -9,14 +9,17 @@ extern crate alloc;
 
 pub mod allocator;
 pub mod context;
+pub mod framebuffer;
 pub mod gdt;
 pub mod interrupts;
+pub mod logger;
 pub mod memory;
 pub mod serial;
 pub mod task;
-pub mod vga_buffer;
+// pub mod vga_buffer;
 
 use core::panic::PanicInfo;
+use log::info;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u32)]
@@ -71,16 +74,23 @@ pub fn hlt_loop() -> ! {
 }
 
 pub fn init() {
+    info!("Initializing GDT");
     gdt::init();
+
+    info!("Initializing interrupts");
     interrupts::init_idt();
+
+    info!("Initializing PICS");
     unsafe {
         interrupts::PICS.lock().initialize();
     }
+
+    info!("Enabling interrupts");
     x86_64::instructions::interrupts::enable();
 }
 
 #[cfg(test)]
-use bootloader::{BootInfo, entry_point};
+use bootloader_api::{BootInfo, entry_point};
 
 #[cfg(test)]
 entry_point!(test_kernel_main);

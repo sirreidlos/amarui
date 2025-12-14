@@ -1,14 +1,14 @@
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
-#![test_runner(amarui::test_runner)]
+#![test_runner(kernel::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
-use amarui::println;
+use kernel::println;
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    amarui::test_panic_handler(info)
+    kernel::test_panic_handler(info)
 }
 
 use core::panic::PanicInfo;

@@ -1,25 +1,25 @@
 #![no_std]
 #![no_main]
 #![feature(custom_test_frameworks)]
-#![test_runner(amarui::test_runner)]
+#![test_runner(kernel::test_runner)]
 #![reexport_test_harness_main = "test_main"]
 
 extern crate alloc;
 
 use alloc::boxed::Box;
 use alloc::vec::Vec;
-use amarui::allocator::HEAP_SIZE;
 use bootloader::{BootInfo, entry_point};
 use core::panic::PanicInfo;
+use kernel::allocator::HEAP_SIZE;
 
 entry_point!(main);
 
 fn main(boot_info: &'static BootInfo) -> ! {
-    use amarui::allocator;
-    use amarui::memory::{self, BootInfoFrameAllocator};
+    use kernel::allocator;
+    use kernel::memory::{self, BootInfoFrameAllocator};
     use x86_64::VirtAddr;
 
-    amarui::init();
+    kernel::init();
     let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
     let mut mapper = unsafe { memory::init(phys_mem_offset) };
     let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
@@ -31,7 +31,7 @@ fn main(boot_info: &'static BootInfo) -> ! {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    amarui::test_panic_handler(info)
+    kernel::test_panic_handler(info)
 }
 
 #[test_case]

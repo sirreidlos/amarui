@@ -1,109 +1,71 @@
-#![no_std] // don't link the Rust standard library
-#![no_main] // disable all Rust-level entry points
-#![feature(custom_test_frameworks)]
-#![test_runner(amarui::test_runner)]
-#![reexport_test_harness_main = "test_main"]
+use ovmf_prebuilt::{Arch, FileType, Prebuilt, Source};
+use std::env;
+use std::process::{Command, exit};
 
-extern crate alloc;
+fn main() {
+    // read env variables that were set in build script
+    let uefi_path = env!("UEFI_PATH");
+    let bios_path = env!("BIOS_PATH");
 
-use alloc::vec;
-use alloc::{boxed::Box, rc::Rc, vec::Vec};
-use amarui::{
-    QemuExitCode, allocator, exit_qemu,
-    memory::{self, BootInfoFrameAllocator},
-    println, serial_println,
-    task::{Task, executor::Executor, keyboard},
-};
-use bootloader::{BootInfo, entry_point};
-use core::panic::PanicInfo;
-use x86_64::{
-    VirtAddr,
-    registers::control::Cr3,
-    structures::paging::{Page, PageTable, Translate, page},
-};
+    println!("{bios_path:?}");
 
-/// This function is called on panic.
-#[cfg(not(test))]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    println!("{}", info);
-    amarui::hlt_loop();
-}
+    // parse mode from CLI
+    let args: Vec<String> = env::args().collect();
+    let prog = &args[0];
 
-#[cfg(test)]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    serial_println!("[failed]\n");
-    serial_println!("Error: {}\n", info);
-    exit_qemu(QemuExitCode::Failed);
-    loop {}
-}
+    // choose whether to start the UEFI or BIOS image
+    let uefi = match args.get(1).map(|s| s.to_lowercase()) {
+        Some(ref s) if s == "uefi" => true,
+        Some(ref s) if s == "bios" => false,
+        Some(ref s) if s == "-h" || s == "--help" => {
+            println!("Usage: {prog} [uefi|bios]");
+            println!("  uefi  - boot using OVMF (UEFI)");
+            println!("  bios  - boot using legacy BIOS");
+            exit(0);
+        }
+        _ => {
+            eprintln!("Usage: {prog} [uefi|bios]");
+            exit(1);
+        }
+    };
 
-const BUFFER_HEIGHT: usize = 25;
-const BUFFER_WIDTH: usize = 80;
+    let mut cmd = Command::new("qemu-system-x86_64");
+    // print serial output to the shell
+    cmd.arg("-serial").arg("mon:stdio");
+    // don't display video output
+    // cmd.arg("-display").arg("none");
+    // enable the guest to exit qemu
+    cmd.arg("-device")
+        .arg("isa-debug-exit,iobase=0xf4,iosize=0x04");
 
-entry_point!(kernel_main);
+    if uefi {
+        let prebuilt =
+            Prebuilt::fetch(Source::LATEST, "target/ovmf").expect("failed to update prebuilt");
 
-async fn async_number() -> u32 {
-    42
-}
+        let code = prebuilt.get_file(Arch::X64, FileType::Code);
+        let vars = prebuilt.get_file(Arch::X64, FileType::Vars);
 
-async fn example_task() {
-    let number = async_number().await;
-    println!("async number: {}", number);
-}
-
-/// this function is the entry point, since the linker looks for a function
-/// named `_start` by default
-#[unsafe(no_mangle)] // don't mangle the name of this function
-pub fn kernel_main(boot_info: &'static BootInfo) -> ! {
-    println!("Hello World{}", "!");
-    amarui::init(); // new
-
-    let phys_mem_offset = VirtAddr::new(boot_info.physical_memory_offset);
-    let mut mapper = unsafe { memory::init(phys_mem_offset) };
-    let mut frame_allocator = unsafe { BootInfoFrameAllocator::init(&boot_info.memory_map) };
-
-    let page = Page::containing_address(VirtAddr::new(0xdeadbeef000));
-    memory::create_example_mapping(page, &mut mapper, &mut frame_allocator);
-
-    let page_ptr: *mut u64 = page.start_address().as_mut_ptr();
-    unsafe { page_ptr.offset(100).write_volatile(0x_f021_f077_f065_f04e) };
-
-    allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap initialization failed");
-
-    // allocate a number on the heap
-    let heap_value = Box::new(41);
-    println!("heap_value at {:p}", heap_value);
-
-    // create a dynamically sized vector
-    let mut vec = Vec::new();
-    for i in 0..500 {
-        vec.push(i);
+        cmd.arg("-drive")
+            .arg(format!("format=raw,file={uefi_path}"));
+        cmd.arg("-drive").arg(format!(
+            "if=pflash,format=raw,unit=0,file={},readonly=on",
+            code.display()
+        ));
+        // copy vars and enable rw instead of snapshot if you want to store data (e.g. enroll secure boot keys)
+        cmd.arg("-drive").arg(format!(
+            "if=pflash,format=raw,unit=1,file={},snapshot=on",
+            vars.display()
+        ));
+    } else {
+        cmd.arg("-drive")
+            .arg(format!("format=raw,file={bios_path}"));
     }
-    println!("vec at {:p}", vec.as_slice());
 
-    // create a reference counted vector -> will be freed when count reaches 0
-    let reference_counted = Rc::new(vec![1, 2, 3]);
-    let cloned_reference = reference_counted.clone();
-    println!(
-        "current reference count is {}",
-        Rc::strong_count(&cloned_reference)
-    );
-    core::mem::drop(reference_counted);
-    println!(
-        "reference count is {} now",
-        Rc::strong_count(&cloned_reference)
-    );
-
-    #[cfg(test)]
-    test_main();
-
-    let mut executor = Executor::new();
-    executor.spawn(Task::new(example_task()));
-    executor.spawn(Task::new(keyboard::print_keypresses())); // new
-    executor.run();
-
-    println!("It did not crash!");
-    amarui::hlt_loop();
+    let mut child = cmd.spawn().expect("failed to start qemu-system-x86_64");
+    let status = child.wait().expect("failed to wait on qemu");
+    match status.code().unwrap_or(1) {
+        0x10 => 0, // success
+        0x11 => 1, // failure
+        _ => 2,    // unknown fault
+    };
 }
