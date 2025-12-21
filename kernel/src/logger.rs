@@ -4,6 +4,7 @@ use conquer_once::spin::OnceCell;
 use core::fmt::Write;
 use log::LevelFilter;
 use spin::Mutex;
+use x86_64::instructions::interrupts;
 
 /// The global logger instance used for the `log` crate.
 pub static LOGGER: OnceCell<LockedLogger> = OnceCell::uninit();
@@ -40,12 +41,14 @@ impl log::Log for LockedLogger {
     }
 
     fn log(&self, record: &log::Record) {
-        if let Some(framebuffer) = &self.framebuffer {
-            let mut framebuffer = framebuffer.lock();
-            writeln!(framebuffer, "{:5}: {}", record.level(), record.args()).unwrap();
-        }
+        interrupts::without_interrupts(|| {
+            if let Some(framebuffer) = &self.framebuffer {
+                let mut framebuffer = framebuffer.lock();
+                writeln!(framebuffer, "{:5}: {}", record.level(), record.args()).unwrap();
+            }
 
-        serial_println!("{:5}: {}", record.level(), record.args());
+            serial_println!("{:5}: {}", record.level(), record.args());
+        })
     }
 
     fn flush(&self) {}
