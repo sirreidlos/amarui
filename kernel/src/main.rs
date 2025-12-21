@@ -8,13 +8,13 @@ extern crate alloc;
 
 use alloc::vec;
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
-use kernel::logger;
 use kernel::task::executor::yield_now;
 use kernel::{
     allocator,
     memory::{self, BootInfoFrameAllocator},
     task::{Task, executor::Executor, keyboard},
 };
+use kernel::{logger, println};
 // use bootloader::{BootInfo, entry_point};
 use bootloader_api::config::{BootloaderConfig, Mapping};
 use bootloader_api::{BootInfo, entry_point};
@@ -69,7 +69,7 @@ async fn example_task() {
     info!("Calling async_number from task 1");
     loop {
         let number = async_number().await;
-        info!("async number task 1: {}", number);
+        // info!("async number task 1: {}", number);
     }
 }
 
@@ -77,7 +77,7 @@ async fn example_task2() {
     info!("Calling async_number from task 2");
     loop {
         let number = async_number().await;
-        info!("async number task 2: {}", number);
+        // info!("async number task 2: {}", number);
     }
 }
 
@@ -97,6 +97,8 @@ pub fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
         frame_info,
         log::LevelFilter::Trace,
     );
+
+    println!("HIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII");
 
     info!("Hello World{}", "!");
     kernel::init(); // new

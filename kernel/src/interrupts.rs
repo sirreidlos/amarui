@@ -1,5 +1,6 @@
 use crate::gdt;
 use crate::hlt_loop;
+use crate::print;
 use lazy_static::lazy_static;
 use log::error;
 use log::info;
@@ -169,7 +170,7 @@ extern "x86-interrupt" fn double_fault_handler(
 }
 
 extern "x86-interrupt" fn timer_interrupt_handler(_stack_frame: InterruptStackFrame) {
-    info!(".");
+    print!(".");
 
     unsafe {
         PICS.lock()
