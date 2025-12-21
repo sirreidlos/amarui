@@ -9,6 +9,7 @@ extern crate alloc;
 use alloc::vec;
 use alloc::{boxed::Box, rc::Rc, vec::Vec};
 use kernel::logger;
+use kernel::task::executor::yield_now;
 use kernel::{
     allocator,
     memory::{self, BootInfoFrameAllocator},
@@ -60,12 +61,24 @@ pub static BOOTLOADER_CONFIG: BootloaderConfig = {
 entry_point!(kernel_main, config = &BOOTLOADER_CONFIG);
 
 async fn async_number() -> u32 {
+    yield_now().await;
     42
 }
 
 async fn example_task() {
-    let number = async_number().await;
-    info!("async number: {}", number);
+    info!("Calling async_number from task 1");
+    loop {
+        let number = async_number().await;
+        info!("async number task 1: {}", number);
+    }
+}
+
+async fn example_task2() {
+    info!("Calling async_number from task 2");
+    loop {
+        let number = async_number().await;
+        info!("async number task 2: {}", number);
+    }
 }
 
 /// this function is the entry point, since the linker looks for a function
@@ -133,6 +146,7 @@ pub fn kernel_main(boot_info: &'static mut BootInfo) -> ! {
 
     let mut executor = Executor::new();
     executor.spawn(Task::new(example_task()));
+    executor.spawn(Task::new(example_task2()));
     executor.spawn(Task::new(keyboard::print_keypresses())); // new
     executor.run();
 

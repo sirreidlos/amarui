@@ -1,6 +1,7 @@
 use super::{Task, TaskId};
 use alloc::task::Wake;
 use alloc::{collections::BTreeMap, sync::Arc};
+use core::pin::Pin;
 use core::task::Waker;
 use core::task::{Context, Poll};
 use crossbeam_queue::ArrayQueue;
@@ -101,4 +102,29 @@ impl Executor {
             interrupts::enable();
         }
     }
+}
+
+pub async fn yield_now() {
+    /// Yield implementation stolen from tokio
+    struct YieldNow {
+        yielded: bool,
+    }
+
+    impl Future for YieldNow {
+        type Output = ();
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
+            if self.yielded {
+                return Poll::Ready(());
+            }
+
+            self.yielded = true;
+
+            cx.waker().wake_by_ref();
+
+            Poll::Pending
+        }
+    }
+
+    YieldNow { yielded: false }.await;
 }
